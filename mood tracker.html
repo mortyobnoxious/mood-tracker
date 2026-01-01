@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Mood Tracker</title>
+    <link rel="shortcut icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='256' height='256' viewBox='0 0 24 24'%3E%3Cpath fill='%234ade80' d='M18.6 3H5.4A2.4 2.4 0 0 0 3 5.4v13.2A2.4 2.4 0 0 0 5.4 21h13.2a2.4 2.4 0 0 0 2.4-2.4V5.4A2.4 2.4 0 0 0 18.6 3'/%3E%3C/svg%3E" type="image/x-icon">
+    <style>
+        :root {
+            --bg-body: #0b0e14;
+            --bg-panel: #151922;
+            --bg-cell: #232936;
+            --text-main: #e2e8f0;
+            --text-dim: #64748b;
+            --border: #2d3748;
+            --cell-radius: 2px;
+            --grid-gap: 1px;
+        }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body {background-color: var(--bg-body);color: var(--text-main);font-family: 'SF Mono', 'Fira Code', Consolas, sans-serif;margin: 0;padding: 20px;min-height: 100vh;display: flex;align-items: center;justify-content: center;}
+        .dashboard {background: var(--bg-panel);padding: 24px;border-radius: 16px;box-shadow: 0 20px 60px rgba(0,0,0,0.5);width: 100%;max-width: 1200px;border: 1px solid var(--border);display: flex;flex-direction: column;gap: 20px;}
+        header {display: flex;flex-direction: column;gap: 15px;}
+        .header-top {display: flex;justify-content: space-between;align-items: center;}
+        .year-selector {display: flex;align-items: center;gap: 15px;}
+        h1 { margin: 0; font-size: 1.4rem; letter-spacing: -0.5px; display: flex; align-items: center; gap: 10px; }
+        .subtitle { color: var(--text-dim); font-size: 0.8rem; font-weight: normal; margin-left: 5px; }
+        .nav-btn {background: #232936;border: 1px solid var(--border);color: var(--text-main);width: 32px;height: 32px;border-radius: 6px;cursor: pointer;display: flex;align-items: center;justify-content: center;transition: all 0.2s;padding: 0;}
+        .nav-btn:hover { background: #2d3748; color: #fff; }
+        .nav-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+        .stats-hud {width: 100%;background: #0f1218;border-radius: 8px;padding: 12px;border: 1px solid var(--border);}
+        .bar-chart {display: flex;height: 12px;width: 100%;border-radius: 6px;overflow: hidden;background: #232936;margin-bottom: 15px;}
+        .bar-segment { height: 100%; transition: width 0.5s ease; }
+        .legend { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; }
+        .legend-item {display: flex;flex-direction: column;align-items: center;gap: 4px;color: var(--text-dim);}
+        .legend-top {display: flex;align-items: center;gap: 6px;font-size: 0.9rem;color: var(--text-main);}
+        .legend-label {font-size: 0.65rem;text-transform: uppercase;letter-spacing: 0.5px;opacity: 0.7;}
+        .dot { width: 8px; height: 8px; border-radius: 2px; }
+        .year-container {display: grid;background: var(--bg-panel);}
+        .grid-header-cell {color: var(--text-dim);font-size: 0.65rem;font-weight: bold;display: flex;align-items: center;justify-content: center;padding: 2px;}
+        .cell {background-color: var(--bg-cell);cursor: pointer;position: relative;border: 1px solid transparent;aspect-ratio: 1/1;transition: background-color 0.2s, box-shadow 0.2s;}
+        .cell:hover { z-index: 50; box-shadow: 0 0 0 1px #fff; }
+        .cell.active { box-shadow: 0 0 0 2px #fff; z-index: 40; }
+        .cell.today-pulse { animation: pulse-border 2s infinite; z-index: 30; }
+        @keyframes pulse-border {
+            0% { box-shadow: 0 0 0 0px rgba(255, 255, 255, 0.7); }
+            70% { box-shadow: 0 0 0 4px rgba(255, 255, 255, 0); }
+            100% { box-shadow: 0 0 0 0px rgba(255, 255, 255, 0); }
+        }
+        .cell.invalid { background: transparent; pointer-events: none; }
+        .footer {display: flex;justify-content: space-between;align-items: center;border-top: 1px solid var(--border);padding-top: 15px;flex-wrap: wrap;gap: 15px;}
+        .footer-group {display: flex;gap: 15px;flex-wrap: wrap;}
+        button.txt-btn {background: none; border: none; color: var(--text-dim);cursor: pointer; font-size: 0.75rem; text-decoration: none;display: flex; align-items: center; gap: 6px;}
+        button.txt-btn:hover { color: var(--text-main); }
+        button.txt-btn svg { width: 14px; height: 14px; stroke: currentColor; stroke-width: 2; fill: none; }
+        button.danger:hover { color: #ef4444; }
+        #popup {position: fixed;background: #1a202c;border: 1px solid #4a5568;border-radius: 12px;padding: 8px;box-shadow: 0 10px 40px rgba(0,0,0,0.8);display: none;z-index: 1000;width: 160px;}
+        .popup-opts { display: flex; flex-direction: column; gap: 4px; }
+        .p-btn {background: #2d3748; color: #fff; border: none; padding: 8px 12px; border-radius: 6px; font-size: 0.75rem; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; transition: background 0.2s;}
+        .p-btn:hover { filter: brightness(1.1); }
+        .p-btn.clr { background: #232936; color: var(--text-dim); justify-content: center; margin-top: 4px;}
+        .p-btn.clr:hover { background: #ef4444; color: #fff; }
+        .swatch { width: 10px; height: 10px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.2); }
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; display: none; align-items: center; justify-content: center; backdrop-filter: blur(2px); }
+        .modal-content { background: var(--bg-panel); width: 95%; max-width: 450px; padding: 25px; border-radius: 12px; border: 1px solid var(--border); box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
+        .modal-header h2 { margin: 0; font-size: 1.2rem; }
+        .modal-close { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 1.5rem; line-height: 1; }
+        .setting-group { margin-bottom: 20px; }
+        .setting-label { display: block; color: var(--text-dim); font-size: 0.8rem; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .color-grid { display: flex; flex-direction: column; gap: 8px; }
+        .color-input-wrapper { display: grid; grid-template-columns: 1fr 40px; align-items: center; gap: 10px; background: #232936; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border); }
+        .label-edit { background: transparent; border: none; color: var(--text-main); font-family: inherit; font-size: 0.85rem; width: 100%; }
+        .label-edit:focus { outline: none; border-bottom: 1px solid var(--text-dim); }
+        input[type="color"] { -webkit-appearance: none; border: none; width: 100%; height: 24px; padding: 0; background: none; cursor: pointer; border-radius: 4px; overflow: hidden; }
+        input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+        input[type="color"]::-webkit-color-swatch { border: none; border-radius: 4px; }
+        .range-wrapper { display: flex; align-items: center; gap: 10px; }
+        input[type="range"] { flex: 1; height: 4px; background: #2d3748; border-radius: 2px; -webkit-appearance: none; }
+        input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; background: var(--text-main); border-radius: 50%; cursor: pointer; }
+        .range-val { font-family: monospace; font-size: 0.9rem; width: 40px; text-align: right; }
+        .modal-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+        .btn-primary { background: var(--text-main); color: var(--bg-body); border: none; padding: 8px 16px; border-radius: 6px; font-weight: bold; cursor: pointer; }
+        .btn-secondary { background: transparent; color: var(--text-dim); border: 1px solid var(--border); padding: 8px 16px; border-radius: 6px; cursor: pointer; }
+        .btn-secondary:hover { color: var(--text-main); border-color: var(--text-main); }
+        @media (max-width: 768px) {
+            .dashboard { padding: 10px; gap: 10px; width: 100%; max-width: 400px; }
+            h1 { font-size: 1.1rem; }
+            .year-container {grid-template-columns: 20px repeat(12, 1fr);gap: 2px !important;}
+            .grid-header-cell { font-size: 0.5rem; padding: 0; }
+            .cell {aspect-ratio: 1/1; width: 100%; max-width: 12px; margin: 0 auto;border-radius: 50% !important;}
+            #topStat { font-size: 0.7rem !important; }
+            .footer { justify-content: center; }
+        }
+        @media (min-width: 769px) {
+            .year-container {grid-template-columns: 40px repeat(31, 1fr);gap: var(--grid-gap);}
+            .cell {border-radius: var(--cell-radius);}
+        }
+    </style>
+</head>
+<body>
+
+<div class="dashboard">
+    <header>
+        <div class="header-top">
+            <div class="year-selector">
+                <button class="nav-btn" onclick="changeYear(-1)">
+                    <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
+                </button>
+                <h1 id="yearDisplay">2026</h1>
+                <button class="nav-btn" onclick="changeYear(1)">
+                    <svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+                </button>
+                <span class="subtitle">MOOD TRACKER</span>
+            </div>
+            
+            <div id="topStat" style="font-size:0.8rem; color:var(--text-main);"></div>
+        </div>
+
+        <div class="stats-hud">
+            <div class="bar-chart" id="barChart"></div>
+            <div class="legend" id="legend"></div>
+        </div>
+    </header>
+
+    <div class="year-container" id="gridContainer">
+        </div>
+
+    <div class="footer">
+        <div class="footer-group">
+            <button class="txt-btn" onclick="openSettings()" title="Settings">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                Settings
+            </button>
+            <button class="txt-btn" onclick="triggerImport()" title="Import Data">
+                <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                Import
+            </button>
+            <button class="txt-btn" onclick="exportData()" title="Export Data">
+                <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Export
+            </button>
+            <button class="txt-btn" onclick="randomize()"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 512 512"><path fill="currentColor" fill-rule="evenodd" d="M465.023 135.32L376.68 465.023L46.977 376.68L135.32 46.977zm-52.256 30.17L165.49 99.233L99.233 346.51l247.277 66.257zM317.08 316.538c17.07 4.574 27.201 22.121 22.627 39.192c-4.574 17.07-22.121 27.201-39.192 22.627c-17.07-4.574-27.201-22.12-22.627-39.192c4.574-17.07 22.12-27.201 39.192-22.627m-52.798-91.448c17.071 4.575 27.202 22.121 22.628 39.192s-22.121 27.202-39.192 22.628s-27.202-22.121-22.628-39.192s22.121-27.202 39.192-22.628m-52.797-91.447c17.07 4.574 27.201 22.12 22.627 39.192c-4.574 17.07-22.12 27.201-39.192 22.627c-17.07-4.574-27.201-22.12-22.627-39.192c4.574-17.07 22.121-27.201 39.192-22.627"/></svg> Randomize</button>
+        </div>
+        <button class="txt-btn danger" onclick="resetAll()"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M12 20h5c0.5 0 1 -0.5 1 -1v-14M12 20h-5c-0.5 0 -1 -0.5 -1 -1v-14"/><path d="M4 5h16"/><path d="M10 4h4M10 9v7M14 9v7"/></g></svg>Clear Year</button>
+    </div>
+</div>
+
+<div id="popup">
+    <div class="popup-opts" id="popupOpts"></div>
+</div>
+
+<div class="modal-overlay" id="settingsModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Settings</h2>
+            <button class="modal-close" onclick="closeSettings()">&times;</button>
+        </div>
+        
+        <div class="setting-group">
+            <span class="setting-label">Mood Labels & Colors</span>
+            <div class="color-grid" id="colorSettingsGrid">
+                </div>
+        </div>
+
+        <div class="setting-group">
+            <span class="setting-label">Grid Layout (Desktop Only)</span>
+            <div style="display:flex; flex-direction:column; gap:15px;">
+                <div>
+                    <span style="font-size:0.8rem; color:var(--text-dim);">Corner Radius</span>
+                    <div class="range-wrapper">
+                        <input type="range" id="radiusInput" min="0" max="20" step="1" oninput="previewSettings()">
+                        <span class="range-val" id="radiusVal">2px</span>
+                    </div>
+                </div>
+                <div>
+                    <span style="font-size:0.8rem; color:var(--text-dim);">Gap Size</span>
+                    <div class="range-wrapper">
+                        <input type="range" id="gapInput" min="0" max="10" step="1" oninput="previewSettings()">
+                        <span class="range-val" id="gapVal">1px</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal-footer">
+            <button class="btn-secondary" onclick="resetToDefaultsPreview()">Defaults</button>
+            <button class="btn-primary" onclick="saveSettings()">Save Changes</button>
+        </div>
+    </div>
+</div>
+
+<input type="file" id="importFile" style="display:none" onchange="importData(this)">
+
+<script>
+    let currentYear = new Date().getFullYear();
+    const DB_KEY = 'mood_tracker_master_db';
+    const SETTINGS_KEY = 'mood_tracker_settings';
+
+    let masterData = {}; 
+    let yearData = {};   
+    
+    const DEFAULT_COLORS = ['#4ade80', '#a3e635', '#facc15', '#fbbf24', '#fb923c', '#ef4444'];
+    const DEFAULT_LABELS = ['Perfect', 'Great', 'Good', 'Neutral', 'Bad', 'Awful'];
+    
+    let MOODS = []; 
+
+    let userSettings = {
+        colors: [...DEFAULT_COLORS],
+        labels: [...DEFAULT_LABELS],
+        borderRadius: 2,
+        gridGap: 1
+    };
+
+    const MONTH_LABELS = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"]; 
+    const MONTH_FULL = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+    const BASE_DAYS = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+    let activeCell = null;
+    let activeKey = null;
+
+    function init() {
+        loadSettings(); 
+        loadMasterData();
+        
+        window.addEventListener('resize', () => renderGrid());
+        document.addEventListener('click', (e) => {
+            const popup = document.getElementById('popup');
+            const settings = document.getElementById('settingsModal');
+            if (!popup.contains(e.target) && !e.target.classList.contains('cell')) {
+                closePopup();
+            }
+            if (e.target === settings) {
+                closeSettings();
+            }
+        });
+        window.addEventListener('scroll', closePopup);
+
+        setTimeout(promptForToday, 300);
+    }
+
+    function loadSettings() {
+        const stored = localStorage.getItem(SETTINGS_KEY);
+        if (stored) {
+            try {
+                const parsed = JSON.parse(stored);
+                if(parsed.colors) userSettings.colors = parsed.colors;
+                if(parsed.labels) userSettings.labels = parsed.labels;
+                if(parsed.borderRadius !== undefined) userSettings.borderRadius = parsed.borderRadius;
+                if(parsed.gridGap !== undefined) userSettings.gridGap = parsed.gridGap;
+            } catch(e) { console.error("Settings parse error"); }
+        }
+        applySettings();
+    }
+
+    function applySettings() {
+        MOODS = [];
+        for(let i=0; i<6; i++) {
+            MOODS.push({
+                label: userSettings.labels[i] || DEFAULT_LABELS[i],
+                value: 5 - i,
+                color: userSettings.colors[i] || DEFAULT_COLORS[i]
+            });
+        }
+
+        const r = document.documentElement;
+        r.style.setProperty('--cell-radius', userSettings.borderRadius + 'px');
+        r.style.setProperty('--grid-gap', userSettings.gridGap + 'px');
+        
+        buildPopup();
+        
+        const cells = document.querySelectorAll('.cell');
+        cells.forEach(cell => {
+            const key = cell.getAttribute('data-key');
+            if (yearData[key] !== undefined && MOODS[yearData[key]]) {
+                cell.style.backgroundColor = MOODS[yearData[key]].color;
+            }
+        });
+        updateStats(MOODS);
+    }
+
+    function previewSettings() {
+        const radius = document.getElementById('radiusInput').value;
+        const gap = document.getElementById('gapInput').value;
+        
+        document.getElementById('radiusVal').textContent = radius + 'px';
+        document.getElementById('gapVal').textContent = gap + 'px';
+        document.documentElement.style.setProperty('--cell-radius', radius + 'px');
+        document.documentElement.style.setProperty('--grid-gap', gap + 'px');
+
+        const tempMoods = [];
+        for(let i=0; i<6; i++) {
+             const lbl = document.getElementById(`label-${i}`).value.trim() || DEFAULT_LABELS[i];
+             const clr = document.getElementById(`color-${i}`).value;
+             tempMoods.push({ label: lbl, value: 5-i, color: clr });
+        }
+
+        const cells = document.querySelectorAll('.cell');
+        cells.forEach(cell => {
+            const key = cell.getAttribute('data-key');
+            if (yearData[key] !== undefined) {
+                cell.style.backgroundColor = tempMoods[yearData[key]].color;
+            }
+        });
+
+        updateStats(tempMoods);
+    }
+
+    function openSettings() {
+        const grid = document.getElementById('colorSettingsGrid');
+        grid.innerHTML = '';
+        
+        MOODS.forEach((m, i) => {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'color-input-wrapper';
+            wrapper.innerHTML = `
+                <input type="text" id="label-${i}" value="${m.label}" class="label-edit" oninput="previewSettings()">
+                <input type="color" id="color-${i}" value="${m.color}" oninput="previewSettings()">
+            `;
+            grid.appendChild(wrapper);
+        });
+
+        document.getElementById('radiusInput').value = userSettings.borderRadius;
+        document.getElementById('radiusVal').textContent = userSettings.borderRadius + 'px';
+        
+        document.getElementById('gapInput').value = userSettings.gridGap;
+        document.getElementById('gapVal').textContent = userSettings.gridGap + 'px';
+
+        document.getElementById('settingsModal').style.display = 'flex';
+    }
+
+    function closeSettings() {
+        document.getElementById('settingsModal').style.display = 'none';
+        applySettings();
+    }
+
+    function saveSettings() {
+        const newColors = [];
+        const newLabels = [];
+        
+        for(let i=0; i<6; i++) {
+            newColors.push(document.getElementById(`color-${i}`).value);
+            const lbl = document.getElementById(`label-${i}`).value.trim();
+            newLabels.push(lbl || DEFAULT_LABELS[i]);
+        }
+
+        userSettings.colors = newColors;
+        userSettings.labels = newLabels;
+        userSettings.borderRadius = parseInt(document.getElementById('radiusInput').value);
+        userSettings.gridGap = parseInt(document.getElementById('gapInput').value);
+
+        localStorage.setItem(SETTINGS_KEY, JSON.stringify(userSettings));
+        
+        applySettings();
+        document.getElementById('settingsModal').style.display = 'none';
+    }
+
+    function resetToDefaultsPreview() {
+        for(let i=0; i<6; i++) {
+            document.getElementById(`color-${i}`).value = DEFAULT_COLORS[i];
+            document.getElementById(`label-${i}`).value = DEFAULT_LABELS[i];
+        }
+        document.getElementById('radiusInput').value = 2;
+        document.getElementById('gapInput').value = 1;
+        previewSettings();
+    }
+
+    function promptForToday() {
+        const now = new Date();
+        const y = now.getFullYear();
+        if (y === currentYear) {
+            const m = now.getMonth();
+            const d = now.getDate();
+            const key = `${m}-${d}`;
+            if (yearData[key] === undefined) {
+                const cell = document.querySelector(`.cell[data-key="${key}"]`);
+                if (cell) {
+                    cell.classList.add('today-pulse');
+                    cell.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    openPopup(null, cell, key);
+                }
+            }
+        }
+    }
+
+    function changeYear(offset) {
+        currentYear += offset;
+        loadYearView();
+    }
+
+    function loadMasterData() {
+        const stored = localStorage.getItem(DB_KEY);
+        masterData = stored ? JSON.parse(stored) : {};
+        loadYearView();
+    }
+
+    function loadYearView() {
+        document.getElementById('yearDisplay').textContent = currentYear;
+        if (!masterData[currentYear]) {
+            masterData[currentYear] = {};
+        }
+        yearData = masterData[currentYear];
+        
+        renderGrid();
+        updateStats(MOODS);
+    }
+
+    function saveMasterData() {
+        localStorage.setItem(DB_KEY, JSON.stringify(masterData));
+        updateStats(MOODS);
+    }
+
+    function getDaysInMonth(mIdx) {
+        if (mIdx === 1) return (currentYear % 4 === 0 && (currentYear % 100 !== 0 || currentYear % 400 === 0)) ? 29 : 28;
+        return BASE_DAYS[mIdx];
+    }
+
+    function renderGrid() {
+        const container = document.getElementById('gridContainer');
+        container.innerHTML = '';
+        const isMobile = window.innerWidth <= 768;
+        if (isMobile) renderMobileGrid(container);
+        else renderDesktopGrid(container);
+    }
+
+    function renderMobileGrid(container) {
+        container.appendChild(createDiv('grid-header-cell', '')); 
+        MONTH_LABELS.forEach(m => container.appendChild(createDiv('grid-header-cell', m)));
+
+        for (let d = 1; d <= 31; d++) {
+            container.appendChild(createDiv('grid-header-cell', d));
+            for (let m = 0; m < 12; m++) {
+                const daysInMonth = getDaysInMonth(m);
+                if (d > daysInMonth) {
+                    container.appendChild(createDiv('cell invalid', ''));
+                } else {
+                    createAndAppendCell(container, m, d);
+                }
+            }
+        }
+    }
+
+    function renderDesktopGrid(container) {
+        container.appendChild(createDiv('grid-header-cell', '')); 
+        for (let d = 1; d <= 31; d++) container.appendChild(createDiv('grid-header-cell', d));
+
+        for (let m = 0; m < 12; m++) {
+            container.appendChild(createDiv('grid-header-cell', MONTH_FULL[m]));
+            for (let d = 1; d <= 31; d++) {
+                const daysInMonth = getDaysInMonth(m);
+                if (d > daysInMonth) {
+                    container.appendChild(createDiv('cell invalid', ''));
+                } else {
+                    createAndAppendCell(container, m, d);
+                }
+            }
+        }
+    }
+
+    function createAndAppendCell(container, m, d) {
+        const cell = document.createElement('div');
+        const key = `${m}-${d}`;
+        cell.className = 'cell';
+        cell.setAttribute('data-key', key); 
+        
+        if (yearData[key] !== undefined && MOODS[yearData[key]]) {
+            cell.style.backgroundColor = MOODS[yearData[key]].color;
+        }
+
+        cell.onclick = (e) => openPopup(e, cell, key);
+        container.appendChild(cell);
+    }
+
+    function createDiv(cls, txt) {
+        const d = document.createElement('div');
+        d.className = cls;
+        d.textContent = txt;
+        return d;
+    }
+
+    function updateStats(moodsSource) {
+        const currentMoods = moodsSource || MOODS;
+        
+        const counts = Array(currentMoods.length).fill(0);
+        let total = 0;
+        let weightedSum = 0;
+
+        Object.values(yearData).forEach(v => {
+            if(v >= 0 && v < currentMoods.length) { 
+                counts[v]++; 
+                total++; 
+                weightedSum += currentMoods[v].value; 
+            }
+        });
+
+        const barChart = document.getElementById('barChart');
+        const legend = document.getElementById('legend');
+        barChart.innerHTML = '';
+        legend.innerHTML = '';
+
+        if (total === 0) {
+            barChart.style.background = '#232936';
+            document.getElementById('topStat').innerHTML = '';
+            currentMoods.forEach((m) => legend.appendChild(createLegendItem(m, 0)));
+            return;
+        }
+
+        currentMoods.forEach((m, i) => {
+            if (counts[i] > 0) {
+                const pct = ((counts[i] / total) * 100);
+                const seg = document.createElement('div');
+                seg.className = 'bar-segment';
+                seg.style.width = pct + '%';
+                seg.style.backgroundColor = m.color; 
+                barChart.appendChild(seg);
+            }
+            legend.appendChild(createLegendItem(m, counts[i]));
+        });
+
+        const average = weightedSum / total;
+        const closestValue = Math.round(average);
+        const averageMood = currentMoods.find(m => m.value === closestValue) || currentMoods[3]; 
+
+        document.getElementById('topStat').innerHTML = 
+            `Average: <span style="color:${averageMood.color}">${averageMood.label}</span> (${average.toFixed(1)}/5.0)`;
+    }
+    
+    function createLegendItem(m, count) {
+        const div = document.createElement('div');
+        div.className = 'legend-item';
+        const top = document.createElement('div');
+        top.className = 'legend-top';
+        top.innerHTML = `<div class="dot" style="background:${m.color}"></div> <strong>${count}</strong>`;
+        
+        const label = document.createElement('span');
+        label.className = 'legend-label';
+        label.textContent = m.label; 
+        
+        div.appendChild(top);
+        div.appendChild(label);
+        return div;
+    }
+
+    function buildPopup() {
+        const opts = document.getElementById('popupOpts');
+        let html = '';
+        MOODS.forEach((m, i) => {
+            html += `<button class="p-btn" onclick="saveMood(${i})">
+                        <span>${m.label}</span>
+                        <div class="swatch" style="background:${m.color}"></div>
+                     </button>`;
+        });
+        html += `<button class="p-btn clr" onclick="saveMood(null)">Clear Entry</button>`;
+        opts.innerHTML = html;
+    }
+
+    function openPopup(e, cell, key) {
+        if (e) e.stopPropagation();
+        
+        if (activeCell === cell) { closePopup(); return; }
+        if (activeCell) {
+            activeCell.classList.remove('active');
+            activeCell.classList.remove('today-pulse'); 
+        }
+
+        activeCell = cell;
+        activeKey = key;
+        cell.classList.add('active');
+        cell.classList.remove('today-pulse');
+
+        const popup = document.getElementById('popup');
+        popup.style.display = 'block';
+
+        const rect = cell.getBoundingClientRect();
+        let top = rect.bottom + 5;
+        let left = rect.left - (160/2) + (rect.width/2); 
+
+        if (left < 10) left = 10;
+        if (left + 170 > window.innerWidth) left = window.innerWidth - 180;
+        if (top + 250 > window.innerHeight) top = rect.top - 260; 
+
+        popup.style.top = top + 'px';
+        popup.style.left = left + 'px';
+    }
+
+    function closePopup() {
+        document.getElementById('popup').style.display = 'none';
+        if (activeCell) activeCell.classList.remove('active');
+        activeCell = null;
+        activeKey = null;
+    }
+
+    function saveMood(idx) {
+        if (!activeKey) return;
+        if (idx === null) {
+            delete yearData[activeKey];
+            activeCell.style.backgroundColor = ''; 
+            activeCell.style.removeProperty('background-color');
+        }
+        else {
+            yearData[activeKey] = idx;
+            activeCell.style.backgroundColor = MOODS[idx].color; 
+        }
+        
+        saveMasterData();
+        closePopup();
+    }
+
+    function randomize() {
+        if(!confirm(`Randomize ${currentYear}?`)) return;
+        yearData = {};
+        for(let m=0; m<12; m++) {
+            const days = getDaysInMonth(m);
+            for(let d=1; d<=days; d++) {
+                yearData[`${m}-${d}`] = Math.floor(Math.random() * 6);
+            }
+        }
+        masterData[currentYear] = yearData;
+        saveMasterData();
+        renderGrid();
+        updateStats(MOODS);
+    }
+
+    function resetAll() {
+        if(!confirm(`Clear ${currentYear}?`)) return;
+        masterData[currentYear] = {};
+        yearData = masterData[currentYear];
+        saveMasterData();
+        renderGrid();
+        updateStats(MOODS);
+    }
+
+    function exportData() {
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(masterData));
+        const downloadAnchorNode = document.createElement('a');
+        downloadAnchorNode.setAttribute("href", dataStr);
+        downloadAnchorNode.setAttribute("download", "mood_tracker_backup.json");
+        document.body.appendChild(downloadAnchorNode); 
+        downloadAnchorNode.click();
+        downloadAnchorNode.remove();
+    }
+
+    function triggerImport() {
+        document.getElementById('importFile').click();
+    }
+
+    function importData(input) {
+        const file = input.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const importedData = JSON.parse(e.target.result);
+                if (typeof importedData === 'object' && importedData !== null) {
+                    if(confirm("This will overwrite your current data. Continue?")) {
+                        masterData = importedData;
+                        saveMasterData();
+                        loadYearView();
+                        alert("Data imported successfully!");
+                    }
+                } else {
+                    alert("Invalid JSON file.");
+                }
+            } catch (err) {
+                alert("Error reading file: " + err);
+            }
+            input.value = ''; 
+        };
+        reader.readAsText(file);
+    }
+
+    init();
+</script>
+</body>
+</html>
